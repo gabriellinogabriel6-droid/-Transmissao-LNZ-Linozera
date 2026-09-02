@@ -105,31 +105,3 @@ O áudio do sistema fica **desligado por padrão**. Dentro da sala existe o bot�
 ## Modo anti-retorno
 
 Nesta versão, o compartilhamento de tela transmite **somente vídeo**. Nenhum áudio do sistema, Discord, navegador ou notificações é enviado. Isso elimina o retorno/eco causado pela captura de áudio do computador.
-
-
-## Discord oficial
-
-O botão do Discord está configurado para:
-`https://discord.gg/m67kQeZrns`
-
-
-## Chat da sala
-
-- Mensagens em tempo real entre os participantes.
-- Envio de imagens, PDF, TXT, ZIP e documentos de escritório.
-- Limite de 2 MB por arquivo.
-- Executáveis e scripts perigosos são bloqueados.
-- O histórico fica somente enquanto a sala existir no servidor.
-
-
-## Ajuste avançado de foto
-
-O editor de avatar agora permite:
-
-- aumentar ou recuar a foto;
-- mover a foto para cima ou para baixo;
-- usar botões rápidos **Subir**, **Centralizar** e **Descer**;
-- arrastar a própria foto no círculo com mouse ou toque;
-- salvar a posição para que o mesmo enquadramento apareça na sala e no chat.
-
-Esta versão também mantém o modo anti-retorno com a transmissão de tela sem áudio.

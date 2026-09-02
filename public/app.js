@@ -10,14 +10,10 @@ const $ = (id) => document.getElementById(id);
 const state = {
   avatar: localStorage.getItem('lnz_avatar') || '',
   avatarScale: Math.min(3, Math.max(0.5, Number(localStorage.getItem('lnz_avatar_scale') || 1.35))),
-  avatarOffsetY: Math.min(60, Math.max(-60, Number(localStorage.getItem('lnz_avatar_offset_y') || 0))),
   nickname: localStorage.getItem('lnz_nickname') || '',
   room: null,
   me: null,
   participants: [],
-  chatMessages: [],
-  selectedChatFile: null,
-  unreadChat: 0,
   selectedVisibility: 'public',
   shareAudio: false,
   isSharing: false,
@@ -81,14 +77,12 @@ function saveIdentity(nickname) {
   localStorage.setItem('lnz_nickname', nickname);
   if (state.avatar) localStorage.setItem('lnz_avatar', state.avatar);
   localStorage.setItem('lnz_avatar_scale', String(state.avatarScale || 1));
-  localStorage.setItem('lnz_avatar_offset_y', String(state.avatarOffsetY || 0));
 }
 
 function persistAvatarState() {
   if (state.avatar) localStorage.setItem('lnz_avatar', state.avatar);
   else localStorage.removeItem('lnz_avatar');
   localStorage.setItem('lnz_avatar_scale', String(state.avatarScale || 1));
-  localStorage.setItem('lnz_avatar_offset_y', String(state.avatarOffsetY || 0));
 }
 
 function applyIdentityToUI() {
@@ -110,10 +104,9 @@ function updateNicknamePreview() {
   if (editorInitials) editorInitials.textContent = initials(landingName || prejoinName || state.nickname || 'LZ');
 }
 
-function applyAvatarTransform(img, scale = state.avatarScale, offsetY = state.avatarOffsetY) {
+function applyAvatarScale(img, scale = state.avatarScale) {
   if (!img) return;
   img.style.setProperty('--avatar-scale', String(scale || 1));
-  img.style.setProperty('--avatar-y', String(Number(offsetY) || 0));
 }
 
 function updateAvatarUI() {
@@ -123,12 +116,11 @@ function updateAvatarUI() {
     if (state.avatar) {
       img.src = state.avatar;
       img.classList.remove('hidden');
-      applyAvatarTransform(img);
+      applyAvatarScale(img);
     } else {
       img.removeAttribute('src');
       img.classList.add('hidden');
       img.style.removeProperty('--avatar-scale');
-      img.style.removeProperty('--avatar-y');
     }
   }
 }
@@ -147,7 +139,6 @@ $('avatarInput').addEventListener('change', (event) => {
   reader.onload = () => {
     state.avatar = String(reader.result || '');
     state.avatarScale = 1.35;
-    state.avatarOffsetY = 0;
     persistAvatarState();
     updateAvatarUI();
   };
@@ -162,7 +153,6 @@ $('adjustAvatarPrejoin').addEventListener('click', openAvatarEditor);
 $('removeAvatarLanding').addEventListener('click', () => {
   state.avatar = '';
   state.avatarScale = 1.35;
-  state.avatarOffsetY = 0;
   persistAvatarState();
   updateAvatarUI();
   showToast('Foto removida.');
@@ -171,26 +161,22 @@ $('removeAvatarLanding').addEventListener('click', () => {
 function updateAvatarEditorPreview() {
   const img = $('avatarEditorImage');
   const scale = Number($('avatarZoom').value || state.avatarScale || 1);
-  const offsetY = Number($('avatarPositionY').value || 0);
   $('avatarZoomValue').textContent = `${Math.round(scale * 100)}%`;
-  $('avatarPositionYValue').textContent = offsetY === 0 ? 'Centro' : (offsetY < 0 ? `${Math.abs(offsetY)}% para cima` : `${offsetY}% para baixo`);
   $('avatarEditorInitials').textContent = initials($('landingNickname').value.trim() || $('prejoinNickname').value.trim() || state.nickname || 'LZ');
   if (state.avatar) {
     img.src = state.avatar;
     img.classList.remove('hidden');
-    applyAvatarTransform(img, scale, offsetY);
+    applyAvatarScale(img, scale);
   } else {
     img.removeAttribute('src');
     img.classList.add('hidden');
     img.style.removeProperty('--avatar-scale');
-    img.style.removeProperty('--avatar-y');
   }
 }
 
 function openAvatarEditor() {
   if (!state.avatar) return showToast('Escolha uma foto primeiro.');
   $('avatarZoom').value = String(state.avatarScale || 1);
-  $('avatarPositionY').value = String(state.avatarOffsetY || 0);
   updateAvatarEditorPreview();
   $('avatarEditorModal').classList.remove('hidden');
   $('avatarEditorModal').setAttribute('aria-hidden', 'false');
@@ -209,64 +195,13 @@ $('avatarZoom').min = '0.5';
 $('avatarZoom').max = '3';
 $('avatarZoom').step = '0.05';
 $('avatarZoom').addEventListener('input', updateAvatarEditorPreview);
-$('avatarPositionY').addEventListener('input', updateAvatarEditorPreview);
-
-function clampAvatarY(value) {
-  return Math.min(60, Math.max(-60, Number(value) || 0));
-}
-
-function nudgeAvatarY(delta) {
-  $('avatarPositionY').value = String(clampAvatarY(Number($('avatarPositionY').value || 0) + delta));
-  updateAvatarEditorPreview();
-}
-
-$('avatarMoveUp').addEventListener('click', () => nudgeAvatarY(-8));
-$('avatarMoveDown').addEventListener('click', () => nudgeAvatarY(8));
-$('avatarCenterY').addEventListener('click', () => {
-  $('avatarPositionY').value = '0';
-  updateAvatarEditorPreview();
-});
-
-// Arrastar a imagem no preview para cima/baixo também ajusta a posição vertical.
-(() => {
-  const preview = $('avatarEditorPreview');
-  let dragging = false;
-  let startClientY = 0;
-  let startOffset = 0;
-
-  preview.addEventListener('pointerdown', (event) => {
-    if (!state.avatar) return;
-    dragging = true;
-    startClientY = event.clientY;
-    startOffset = Number($('avatarPositionY').value || 0);
-    preview.setPointerCapture?.(event.pointerId);
-    preview.classList.add('dragging');
-  });
-
-  preview.addEventListener('pointermove', (event) => {
-    if (!dragging) return;
-    const deltaPx = event.clientY - startClientY;
-    const deltaPercent = (deltaPx / Math.max(1, preview.clientHeight)) * 100;
-    $('avatarPositionY').value = String(clampAvatarY(startOffset + deltaPercent));
-    updateAvatarEditorPreview();
-  });
-
-  const finishDrag = () => {
-    dragging = false;
-    preview.classList.remove('dragging');
-  };
-  preview.addEventListener('pointerup', finishDrag);
-  preview.addEventListener('pointercancel', finishDrag);
-})();
 $('changeAvatarFromEditor').addEventListener('click', pickAvatar);
 $('resetAvatarZoom').addEventListener('click', () => {
-  $('avatarZoom').value = '1.35';
-  $('avatarPositionY').value = '0';
+  $('avatarZoom').value = '1';
   updateAvatarEditorPreview();
 });
 $('saveAvatarEditor').addEventListener('click', () => {
   state.avatarScale = Math.min(3, Math.max(0.5, Number($('avatarZoom').value || 1)));
-  state.avatarOffsetY = clampAvatarY($('avatarPositionY').value);
   persistAvatarState();
   updateAvatarUI();
   closeAvatarEditor();
@@ -335,7 +270,6 @@ $('createRoomConfirm').addEventListener('click', async () => {
     nickname,
     avatar: state.avatar,
     avatarScale: state.avatarScale,
-    avatarOffsetY: state.avatarOffsetY,
     visibility: state.selectedVisibility,
     password
   }, resolve));
@@ -396,7 +330,6 @@ $('enterRoom').addEventListener('click', async () => {
     nickname,
     avatar: state.avatar,
     avatarScale: state.avatarScale,
-    avatarOffsetY: state.avatarOffsetY,
     password: $('roomPassword').value
   }, resolve));
   $('enterRoom').disabled = false;
@@ -416,13 +349,9 @@ function enterActiveRoom(result) {
   state.room = result.room;
   state.me = result.me;
   state.participants = result.participants || [];
-  state.chatMessages = result.chatMessages || [];
-  state.unreadChat = 0;
   state.sharerId = result.sharerId || null;
   setView('room');
   renderRoom();
-  renderChatHistory();
-  updateChatUnread();
   updateStage();
 }
 
@@ -441,7 +370,7 @@ function renderRoom() {
   $('meName').textContent = me?.nickname || state.nickname || 'Você';
   const meMini = $('meMiniAvatar');
   if (me?.avatar) {
-    meMini.innerHTML = `<img src="${me.avatar}" alt="" style="--avatar-scale:${me.avatarScale || 1};--avatar-y:${me.avatarOffsetY || 0}">`;
+    meMini.innerHTML = `<img src="${me.avatar}" alt="" style="--avatar-scale:${me.avatarScale || 1}">`;
   } else {
     meMini.textContent = initials(me?.nickname || state.nickname);
   }
@@ -458,7 +387,6 @@ function renderRoom() {
       img.src = person.avatar;
       img.alt = '';
       img.style.setProperty('--avatar-scale', String(person.avatarScale || 1));
-      img.style.setProperty('--avatar-y', String(person.avatarOffsetY || 0));
       avatar.appendChild(img);
     } else {
       avatar.textContent = initials(person.nickname);
@@ -491,279 +419,8 @@ $('topRoomCode').addEventListener('click', () => copyText(state.room?.code || ''
 $('copyInvite').addEventListener('click', () => copyText(roomInviteLink(), 'Link'));
 $('copyInviteCenter').addEventListener('click', () => copyText(roomInviteLink(), 'Link'));
 
-const CHAT_MAX_FILE_SIZE = 2 * 1024 * 1024;
-const CHAT_ALLOWED_EXTENSIONS = new Set([
-  'png', 'jpg', 'jpeg', 'webp', 'gif', 'pdf', 'txt', 'zip',
-  'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'
-]);
-
-function formatFileSize(bytes) {
-  const value = Number(bytes || 0);
-  if (value < 1024) return `${value} B`;
-  if (value < 1024 * 1024) return `${Math.round(value / 1024)} KB`;
-  return `${(value / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function formatChatTime(timestamp) {
-  try {
-    return new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(new Date(timestamp));
-  } catch {
-    return '';
-  }
-}
-
-function isChatDrawerMode() {
-  return window.matchMedia('(max-width: 1100px)').matches;
-}
-
-function isChatOpen() {
-  return !isChatDrawerMode() || $('chatPanel').classList.contains('open');
-}
-
-function openChat() {
-  $('chatPanel').classList.add('open');
-  state.unreadChat = 0;
-  updateChatUnread();
-  setTimeout(() => $('chatInput').focus(), 50);
-  scrollChatToBottom();
-}
-
-function closeChat() {
-  $('chatPanel').classList.remove('open');
-}
-
-function updateChatUnread() {
-  const badge = $('chatUnread');
-  if (!badge) return;
-  badge.textContent = state.unreadChat > 99 ? '99+' : String(state.unreadChat);
-  badge.classList.toggle('hidden', state.unreadChat <= 0);
-}
-
-function scrollChatToBottom() {
-  const container = $('chatMessages');
-  if (container) container.scrollTop = container.scrollHeight;
-}
-
-function renderChatHistory() {
-  const container = $('chatMessages');
-  if (!container) return;
-  container.innerHTML = '';
-  $('chatEmpty')?.remove();
-
-  if (!state.chatMessages.length) {
-    const empty = document.createElement('div');
-    empty.id = 'chatEmpty';
-    empty.className = 'chat-empty';
-    const icon = document.createElement('div');
-    icon.textContent = '💬';
-    const title = document.createElement('strong');
-    title.textContent = 'Nenhuma mensagem ainda';
-    const text = document.createElement('span');
-    text.textContent = 'Envie uma mensagem ou arquivo para a sala.';
-    empty.append(icon, title, text);
-    container.appendChild(empty);
-    return;
-  }
-
-  state.chatMessages.forEach((message) => renderChatMessage(message, false));
-  scrollChatToBottom();
-}
-
-function renderChatMessage(message, shouldScroll = true) {
-  const container = $('chatMessages');
-  if (!container || !message) return;
-  $('chatEmpty')?.remove();
-
-  const item = document.createElement('div');
-  item.className = `chat-message${message.senderId === state.me ? ' own' : ''}`;
-  item.dataset.messageId = message.id || '';
-
-  const avatar = document.createElement('div');
-  avatar.className = 'chat-message-avatar';
-  if (message.avatar) {
-    const img = document.createElement('img');
-    img.src = message.avatar;
-    img.alt = '';
-    img.style.setProperty('--avatar-scale', String(message.avatarScale || 1));
-    img.style.setProperty('--avatar-y', String(message.avatarOffsetY || 0));
-    avatar.appendChild(img);
-  } else {
-    avatar.textContent = initials(message.nickname);
-  }
-
-  const body = document.createElement('div');
-  body.className = 'chat-message-body';
-
-  const meta = document.createElement('div');
-  meta.className = 'chat-message-meta';
-  const name = document.createElement('strong');
-  name.textContent = message.senderId === state.me ? 'Você' : (message.nickname || 'Participante');
-  const time = document.createElement('span');
-  time.textContent = formatChatTime(message.createdAt);
-  meta.append(name, time);
-  body.appendChild(meta);
-
-  if (message.text) {
-    const bubble = document.createElement('div');
-    bubble.className = 'chat-bubble';
-    bubble.textContent = message.text;
-    body.appendChild(bubble);
-  }
-
-  if (message.attachment?.data) {
-    const attachment = document.createElement('div');
-    attachment.className = 'chat-attachment';
-
-    if (String(message.attachment.type || '').startsWith('image/')) {
-      const preview = document.createElement('img');
-      preview.src = message.attachment.data;
-      preview.alt = message.attachment.name || 'Imagem enviada';
-      preview.loading = 'lazy';
-      attachment.appendChild(preview);
-    }
-
-    const download = document.createElement('a');
-    download.className = 'chat-file-card';
-    download.href = message.attachment.data;
-    download.download = message.attachment.name || 'arquivo';
-    const icon = document.createElement('span');
-    icon.textContent = '📎';
-    const fileMeta = document.createElement('div');
-    const fileName = document.createElement('strong');
-    fileName.textContent = message.attachment.name || 'Arquivo';
-    const fileSize = document.createElement('small');
-    fileSize.textContent = `${formatFileSize(message.attachment.size)} • clique para baixar`;
-    fileMeta.append(fileName, fileSize);
-    download.append(icon, fileMeta);
-    attachment.appendChild(download);
-    body.appendChild(attachment);
-  }
-
-  item.append(avatar, body);
-  container.appendChild(item);
-  if (shouldScroll) scrollChatToBottom();
-}
-
-function clearSelectedChatFile() {
-  state.selectedChatFile = null;
-  $('chatFileInput').value = '';
-  $('chatFilePreview').classList.add('hidden');
-}
-
-function fileExtension(name) {
-  const value = String(name || '');
-  return value.includes('.') ? value.split('.').pop().toLowerCase() : '';
-}
-
-function chooseChatFile() {
-  $('chatFileInput').click();
-}
-
-$('chatFileInput').addEventListener('change', (event) => {
-  const file = event.target.files?.[0];
-  if (!file) return;
-  const ext = fileExtension(file.name);
-  if (!CHAT_ALLOWED_EXTENSIONS.has(ext)) {
-    clearSelectedChatFile();
-    return showToast('Esse tipo de arquivo não é permitido.');
-  }
-  if (file.size > CHAT_MAX_FILE_SIZE) {
-    clearSelectedChatFile();
-    return showToast('O arquivo deve ter no máximo 2 MB.');
-  }
-  state.selectedChatFile = file;
-  $('chatFileName').textContent = file.name;
-  $('chatFileSize').textContent = formatFileSize(file.size);
-  $('chatFilePreview').classList.remove('hidden');
-});
-
-$('chatAttach').addEventListener('click', chooseChatFile);
-$('removeChatFile').addEventListener('click', clearSelectedChatFile);
-$('chatControl').addEventListener('click', () => {
-  if (isChatDrawerMode() && $('chatPanel').classList.contains('open')) closeChat();
-  else openChat();
-});
-$('closeChat').addEventListener('click', closeChat);
-
-$('chatInput').addEventListener('input', () => {
-  const input = $('chatInput');
-  input.style.height = 'auto';
-  input.style.height = `${Math.min(input.scrollHeight, 110)}px`;
-});
-$('chatInput').addEventListener('keydown', (event) => {
-  if (event.key === 'Enter' && !event.shiftKey) {
-    event.preventDefault();
-    $('chatForm').requestSubmit();
-  }
-});
-
-function readFileAsDataURL(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result || ''));
-    reader.onerror = () => reject(new Error('Falha ao ler arquivo'));
-    reader.readAsDataURL(file);
-  });
-}
-
-$('chatForm').addEventListener('submit', async (event) => {
-  event.preventDefault();
-  if (!state.room || !state.me) return showToast('Entre em uma sala primeiro.');
-
-  const text = $('chatInput').value.trim();
-  const file = state.selectedChatFile;
-  if (!text && !file) return;
-
-  let attachment = null;
-  if (file) {
-    try {
-      const data = await readFileAsDataURL(file);
-      attachment = { name: file.name, type: file.type || 'application/octet-stream', size: file.size, data };
-    } catch {
-      return showToast('Não foi possível ler o arquivo.');
-    }
-  }
-
-  $('chatSend').disabled = true;
-  const result = await new Promise((resolve) => socket.emit('send-chat-message', { text, attachment }, resolve));
-  $('chatSend').disabled = false;
-  if (!result?.ok) return showToast(result?.error || 'Não foi possível enviar a mensagem.');
-
-  $('chatInput').value = '';
-  $('chatInput').style.height = 'auto';
-  clearSelectedChatFile();
-});
-
-socket.on('chat-message', (message) => {
-  if (!state.room || !message) return;
-  state.chatMessages.push(message);
-  if (state.chatMessages.length > 80) state.chatMessages.shift();
-  renderChatMessage(message);
-
-  if (message.senderId !== state.me && !isChatOpen()) {
-    state.unreadChat += 1;
-    updateChatUnread();
-  }
-});
-
-window.addEventListener('resize', () => {
-  if (!isChatDrawerMode()) {
-    state.unreadChat = 0;
-    updateChatUnread();
-  }
-});
-
 function makePeerConnection() {
   return new RTCPeerConnection({ iceServers: config.iceServers });
-}
-
-function hardMuteStageVideo() {
-  const video = $('stageVideo');
-  if (!video) return;
-  video.muted = true;
-  video.defaultMuted = true;
-  video.volume = 0;
-  video.setAttribute('muted', '');
 }
 
 async function createOutboundPeer(viewerId) {
@@ -826,7 +483,8 @@ async function startSharing() {
     state.isSharing = true;
     state.sharerId = state.me;
     const localPreview = $('stageVideo');
-    hardMuteStageVideo();
+    localPreview.muted = true;
+    localPreview.volume = 0;
     localPreview.srcObject = stream;
     stream.getVideoTracks()[0]?.addEventListener('ended', () => stopSharing(), { once: true });
 
@@ -858,12 +516,12 @@ function stopSharing(notifyServer = true) {
   if (state.sharerId === state.me) state.sharerId = null;
   const stageVideo = $('stageVideo');
   stageVideo.srcObject = null;
-  hardMuteStageVideo();
+  stageVideo.muted = false;
+  stageVideo.volume = 1;
   updateStage();
 }
 
 function updateStage() {
-  hardMuteStageVideo();
   const hasShare = Boolean(state.sharerId || state.isSharing);
   $('emptyStage').classList.toggle('hidden', hasShare);
   $('videoStage').classList.toggle('hidden', !hasShare);
@@ -916,11 +574,6 @@ async function leaveRoom() {
   state.room = null;
   state.me = null;
   state.participants = [];
-  state.chatMessages = [];
-  state.unreadChat = 0;
-  clearSelectedChatFile();
-  closeChat();
-  updateChatUnread();
   state.sharerId = null;
   history.pushState({}, '', '/');
   setView('landing');
@@ -943,7 +596,8 @@ socket.on('sharing-started', ({ sharerId }) => {
   if (sharerId !== state.me) {
     const stageVideo = $('stageVideo');
     stageVideo.srcObject = null;
-    hardMuteStageVideo();
+    stageVideo.muted = false;
+    stageVideo.volume = 1;
     $('videoConnecting').classList.remove('hidden');
   }
   updateStage();
@@ -972,8 +626,6 @@ socket.on('viewer-left', ({ viewerId }) => {
 socket.on('signal', async ({ from, data }) => {
   try {
     if (data.type === 'offer') {
-      // O transmissor nunca deve receber/reproduzir uma transmissão de volta.
-      if (state.isSharing || state.sharerId === state.me || from === state.me) return;
       closeInboundPeer();
       const pc = makePeerConnection();
       state.inboundPeer = pc;
@@ -982,9 +634,9 @@ socket.on('signal', async ({ from, data }) => {
         if (event.candidate) socket.emit('signal', { target: from, data: { type: 'ice', candidate: event.candidate } });
       };
       pc.ontrack = (event) => {
-        if (state.isSharing || state.sharerId === state.me) return;
         const stageVideo = $('stageVideo');
-        hardMuteStageVideo();
+        stageVideo.muted = false;
+        stageVideo.volume = 1;
         stageVideo.srcObject = event.streams[0];
         stageVideo.play?.().catch(() => {});
         $('videoConnecting').classList.add('hidden');

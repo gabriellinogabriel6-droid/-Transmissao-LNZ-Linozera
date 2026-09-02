@@ -167,7 +167,7 @@
           <span id="sharingLabel">Transmitindo agora</span>
           <span class="live-badge">AO VIVO</span>
         </div>
-        <video id="stageVideo" autoplay playsinline muted></video>
+        <video id="stageVideo" autoplay playsinline></video>
         <div id="videoConnecting" class="video-connecting hidden"><div class="spinner"></div><span>Conectando transmissão...</span></div>
       </div>
 
@@ -176,48 +176,11 @@
         <span></span>
         <button id="audioControl" class="control-audio" type="button" title="Modo anti-retorno: nenhum áudio é transmitido" disabled>🔇 Áudio bloqueado</button>
         <span></span>
-        <button id="chatControl" class="control-chat" type="button" title="Abrir chat">💬 Chat <b id="chatUnread" class="chat-unread hidden">0</b></button>
-        <span></span>
         <button id="fullscreenControl" class="control-icon" title="Tela cheia">⛶</button>
         <span></span>
         <button id="leaveControl" class="control-icon leave-icon" title="Sair da sala">↪</button>
       </div>
     </section>
-
-    <aside id="chatPanel" class="chat-panel">
-      <div class="chat-head">
-        <div>
-          <span>CHAT DA SALA</span>
-          <strong>Conversa em tempo real</strong>
-        </div>
-        <button id="closeChat" class="chat-close" type="button" title="Fechar chat">×</button>
-      </div>
-
-      <div id="chatMessages" class="chat-messages">
-        <div id="chatEmpty" class="chat-empty">
-          <div>💬</div>
-          <strong>Nenhuma mensagem ainda</strong>
-          <span>Envie uma mensagem ou arquivo para a sala.</span>
-        </div>
-      </div>
-
-      <div id="chatFilePreview" class="chat-file-preview hidden">
-        <div class="chat-file-icon">📎</div>
-        <div class="chat-file-meta">
-          <strong id="chatFileName">arquivo</strong>
-          <span id="chatFileSize">0 KB</span>
-        </div>
-        <button id="removeChatFile" type="button" title="Remover arquivo">×</button>
-      </div>
-
-      <form id="chatForm" class="chat-compose">
-        <input id="chatFileInput" type="file" hidden accept=".png,.jpg,.jpeg,.webp,.gif,.pdf,.txt,.zip,.doc,.docx,.xls,.xlsx,.ppt,.pptx" />
-        <button id="chatAttach" class="chat-attach" type="button" title="Enviar arquivo">📎</button>
-        <textarea id="chatInput" maxlength="1000" rows="1" placeholder="Escreva uma mensagem..."></textarea>
-        <button id="chatSend" class="chat-send" type="submit" title="Enviar">➤</button>
-      </form>
-      <div class="chat-hint">Arquivos de até 2 MB • executáveis bloqueados</div>
-    </aside>
   </main>
 
   <div id="createModal" class="modal hidden" aria-hidden="true">
@@ -266,20 +229,9 @@
       </div>
 
       <div class="field">
-        <div class="label-line"><label for="avatarZoom">TAMANHO DA FOTO</label><small id="avatarZoomValue">135%</small></div>
+        <div class="label-line"><label for="avatarZoom">TAMANHO DA FOTO</label><small id="avatarZoomValue">100%</small></div>
         <input id="avatarZoom" type="range" min="0.5" max="3" step="0.05" value="1.35" />
-        <small class="helper">Aumente ou recue a foto dentro do círculo.</small>
-      </div>
-
-      <div class="field avatar-position-field">
-        <div class="label-line"><label for="avatarPositionY">POSIÇÃO VERTICAL</label><small id="avatarPositionYValue">Centro</small></div>
-        <input id="avatarPositionY" type="range" min="-60" max="60" step="1" value="0" />
-        <div class="avatar-position-buttons">
-          <button id="avatarMoveUp" class="btn btn-outline small-btn" type="button">↑ Subir</button>
-          <button id="avatarCenterY" class="btn btn-outline small-btn" type="button">Centralizar</button>
-          <button id="avatarMoveDown" class="btn btn-outline small-btn" type="button">↓ Descer</button>
-        </div>
-        <small class="helper">Você também pode arrastar a foto diretamente no círculo para cima ou para baixo.</small>
+        <small class="helper">Arraste para aproximar ou recuar a foto dentro do círculo.</small>
       </div>
 
       <div class="avatar-editor-buttons">
