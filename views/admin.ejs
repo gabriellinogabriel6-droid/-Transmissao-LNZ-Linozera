@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Painel Admin • LNZ</title><link rel="stylesheet" href="/style.css"></head>
+<body><div class="ambient"></div>
+<header class="topbar"><a class="brand" href="/"><span class="brandmark">LNZ</span><span>Admin</span></a><div class="userchip"><span><%= user.global_name || user.username %></span><a class="btn primary small" href="/sala">📺 Transmissão</a><a class="btn ghost small" href="/logout">Sair</a></div></header>
+<main class="shell">
+  <div class="pagehead"><div><div class="eyebrow">PAINEL ADMINISTRATIVO</div><h1>Visão geral</h1><p>Controle clientes, vendas, vencimentos e atendimento.</p></div></div>
+  <% if (message) { %><div class="notice"><%= message %></div><% } %>
+  <section class="stats">
+    <div class="stat"><span>Faturamento do mês</span><strong><%= brl(report.total) %></strong><small><%= report.sales.length %> vendas</small></div>
+    <div class="stat"><span>Clientes</span><strong><%= clients.length %></strong><small><%= report.active %> ativos</small></div>
+    <div class="stat"><span>Hospedagens vencidas</span><strong><%= report.expired %></strong><small>precisam de atenção</small></div>
+    <div class="stat"><span>Tickets do mês</span><strong><%= report.tickets.length %></strong><small>atendimentos</small></div>
+  </section>
+
+  <section class="panel chart-panel"><div class="panel-title"><div><h2>Faturamento • 6 meses</h2><p>Comparativo rápido</p></div></div>
+    <% const max = Math.max(1, ...monthly.map(m => m.total)); %>
+    <div class="bars"><% monthly.forEach(m => { %><div class="barcol"><div class="barvalue"><%= brl(m.total) %></div><div class="bartrack"><div class="barfill" style="height:<%= Math.max(3, Math.round((m.total/max)*100)) %>%"></div></div><span><%= m.label %></span></div><% }) %></div>
+  </section>
+
+  <section class="forms-grid">
+    <form class="panel form" method="post" action="/admin/cliente"><h2>Cadastrar cliente</h2><label>ID do Discord<input name="userId" placeholder="123456789012345678" required></label><label>Plano<input name="plan" placeholder="Bot Premium" required></label><label>Valor mensal<input name="value" type="number" min="0" step="0.01" placeholder="49.90" required></label><label>Vencimento<input name="dueDate" type="date" required></label><button class="btn primary" type="submit">Salvar cliente</button></form>
+    <form class="panel form" method="post" action="/admin/venda"><h2>Registrar venda</h2><label>ID do cliente<input name="userId" required></label><label>Produto<input name="product" placeholder="Bot + hospedagem" required></label><label>Valor<input name="amount" type="number" min="0" step="0.01" required></label><label>Forma de pagamento<input name="method" placeholder="PIX" required></label><button class="btn primary" type="submit">Registrar venda</button></form>
+    <form class="panel form" method="post" action="/admin/renovar"><h2>Renovar hospedagem</h2><label>ID do cliente<input name="userId" required></label><label>Dias<input name="days" type="number" min="1" value="30" required></label><label>Valor pago (opcional)<input name="amount" type="number" min="0" step="0.01"></label><button class="btn primary" type="submit">Renovar</button></form>
+  </section>
+
+  <section class="panel"><div class="panel-title"><div><h2>Clientes e hospedagens</h2><p>Ordenado por vencimento</p></div></div><div class="tablewrap"><table><thead><tr><th>Cliente</th><th>Plano</th><th>Valor</th><th>Vencimento</th><th>Status</th></tr></thead><tbody>
+  <% clients.forEach(c => { const d = daysUntil(c.dueDate); %><tr><td><code><%= c.userId %></code></td><td><%= c.plan %></td><td><%= brl(c.monthlyValue) %></td><td><%= formatDate(c.dueDate) %></td><td><span class="badge <%= d < 0 ? 'red' : d <= 7 ? 'yellow' : 'green' %>"><%= d < 0 ? 'Vencido' : d === 0 ? 'Vence hoje' : d + ' dias' %></span></td></tr><% }) %>
+  <% if (!clients.length) { %><tr><td colspan="5" class="empty">Nenhum cliente cadastrado.</td></tr><% } %></tbody></table></div></section>
+
+  <section class="split">
+    <div class="panel"><div class="panel-title"><div><h2>Últimas vendas</h2><p>Histórico financeiro</p></div></div><div class="list"><% sales.slice(0,12).forEach(s => { %><div class="listrow"><div><strong><%= s.product %></strong><small><code><%= s.clientUserId %></code> • <%= s.paymentMethod %></small></div><div class="money"><%= brl(s.amount) %></div></div><% }) %><% if (!sales.length) { %><div class="empty">Sem vendas.</div><% } %></div></div>
+    <div class="panel"><div class="panel-title"><div><h2>Últimos tickets</h2><p>Atendimento e transcrições</p></div></div><div class="list"><% tickets.slice(0,12).forEach(t => { %><a class="listrow linkrow" href="/transcricao/<%= t.id %>"><div><strong>Ticket #<%= t.id %></strong><small><%= t.reason %> • <code><%= t.userId %></code></small></div><span class="badge <%= t.status === 'open' ? 'green' : '' %>"><%= t.status === 'open' ? 'Aberto' : 'Fechado' %></span></a><% }) %><% if (!tickets.length) { %><div class="empty">Sem tickets.</div><% } %></div></div>
+  </section>
+
+  <section class="panel"><div class="panel-title"><div><h2>Logs do sistema</h2><p>Alterações e ações administrativas</p></div></div><div class="logs"><% logs.forEach(l => { %><div class="log"><span class="dot"></span><div><strong><%= l.type %></strong><p><%= l.text %></p><small><%= new Date(l.createdAt).toLocaleString('pt-BR') %> • ator <code><%= l.actorId || 'sistema' %></code></small></div></div><% }) %><% if (!logs.length) { %><div class="empty">Sem logs ainda.</div><% } %></div></section>
+</main><footer>© 2026 LNZ Gestão</footer></body></html>

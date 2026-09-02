@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Sala de transmissão • LNZ</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="ambient"></div>
+<header class="topbar">
+  <a class="brand" href="<%= isAdmin ? '/dashboard' : '/cliente' %>"><span class="brandmark">LNZ</span><span>Transmissão</span></a>
+  <div class="userchip"><span><%= user.global_name || user.username %></span><span id="onlineCount" class="badge green">1 online</span><a class="btn ghost small" href="<%= isAdmin ? '/dashboard' : '/cliente' %>">Voltar</a></div>
+</header>
+
+<main class="shell stream-shell">
+  <div class="pagehead stream-head">
+    <div><div class="eyebrow">SALA AO VIVO</div><h1>Transmissão + chat</h1><p>Assista à tela compartilhada com áudio e converse em tempo real.</p></div>
+    <div id="liveBadge" class="live-pill off"><span></span><b>OFFLINE</b></div>
+  </div>
+
+  <section class="stream-layout">
+    <div class="panel stream-panel">
+      <div class="video-stage" id="videoStage">
+        <video id="streamVideo" autoplay playsinline></video>
+        <div id="streamEmpty" class="stream-empty">
+          <div class="stream-icon">▣</div>
+          <strong id="emptyTitle"><%= isAdmin ? 'Pronto para transmitir' : 'Aguardando transmissão' %></strong>
+          <p id="emptyText"><%= isAdmin ? 'Clique em “Transmitir tela” e escolha uma aba, janela ou tela. Marque a opção de compartilhar áudio quando ela aparecer.' : 'Quando a administração iniciar, a transmissão aparecerá aqui automaticamente.' %></p>
+        </div>
+      </div>
+
+      <div class="stream-controls">
+        <div class="stream-status"><span id="connectionDot" class="status-dot"></span><span id="connectionText">Conectando à sala…</span></div>
+        <div class="control-actions">
+          <button id="soundBtn" class="btn ghost" type="button">🔊 Som ligado</button>
+          <% if (isAdmin) { %>
+            <button id="shareBtn" class="btn primary" type="button">Transmitir tela + som</button>
+            <button id="stopBtn" class="btn danger" type="button" hidden>Parar transmissão</button>
+          <% } %>
+        </div>
+      </div>
+      <div class="audio-note">A transmissão não usa seu microfone. O som vem apenas do conteúdo compartilhado quando o navegador disponibiliza áudio.</div>
+    </div>
+
+    <aside class="panel room-chat">
+      <div class="panel-title chat-title"><div><h2>Chat da sala</h2><p>Mensagens em tempo real</p></div><span class="badge">AO VIVO</span></div>
+      <div id="chatMessages" class="room-messages">
+        <div class="system-chat">Você entrou na sala.</div>
+      </div>
+      <form id="chatForm" class="chat-compose">
+        <textarea id="chatInput" maxlength="1000" rows="2" placeholder="Escreva uma mensagem…"></textarea>
+        <button class="btn primary" type="submit">Enviar</button>
+      </form>
+    </aside>
+  </section>
+</main>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+(() => {
+  const IS_ADMIN = <%- JSON.stringify(isAdmin) %>;
+  const socket = io();
+  const video = document.getElementById('streamVideo');
+  const empty = document.getElementById('streamEmpty');
+  const emptyTitle = document.getElementById('emptyTitle');
+  const emptyText = document.getElementById('emptyText');
+  const liveBadge = document.getElementById('liveBadge');
+  const onlineCount = document.getElementById('onlineCount');
+  const connectionDot = document.getElementById('connectionDot');
+  const connectionText = document.getElementById('connectionText');
+  const soundBtn = document.getElementById('soundBtn');
+  const shareBtn = document.getElementById('shareBtn');
+  const stopBtn = document.getElementById('stopBtn');
+  const chatForm = document.getElementById('chatForm');
+  const chatInput = document.getElementById('chatInput');
+  const chatMessages = document.getElementById('chatMessages');
+
+  let localStream = null;
+  let broadcasterId = null;
+  let viewerPc = null;
+  const broadcasterPeers = new Map();
+  const pendingIce = new Map();
+  const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }] };
+
+  function setLive(on) {
+    liveBadge.classList.toggle('off', !on);
+    liveBadge.classList.toggle('on', on);
+    liveBadge.querySelector('b').textContent = on ? 'AO VIVO' : 'OFFLINE';
+  }
+
+  function showVideo(show) {
+    empty.hidden = show;
+    video.classList.toggle('visible', show);
+  }
+
+  function setConnection(text, ok = false) {
+    connectionText.textContent = text;
+    connectionDot.classList.toggle('ok', ok);
+  }
+
+  function addSystem(text) {
+    const el = document.createElement('div');
+    el.className = 'system-chat';
+    el.textContent = text;
+    chatMessages.appendChild(el);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+  }
+
+  function addMessage(msg) {
+    const row = document.createElement('div');
+    row.className = 'room-msg';
+    const top = document.createElement('div');
+    top.className = 'room-msg-head';
+    const name = document.createElement('strong');
+    name.textContent = msg.name;
+    if (msg.isAdmin) name.classList.add('admin-name');
+    const time = document.createElement('small');
+    time.textContent = new Date(msg.time).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    const body = document.createElement('p');
+    body.textContent = msg.text;
+    top.append(name, time);
+    row.append(top, body);
+    chatMessages.appendChild(row);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+  }
+
+  function getPending(id) {
+    if (!pendingIce.has(id)) pendingIce.set(id, []);
+    return pendingIce.get(id);
+  }
+
+  async function flushIce(id, pc) {
+    const list = getPending(id);
+    while (list.length) {
+      try { await pc.addIceCandidate(list.shift()); } catch {}
+    }
+  }
+
+  function closeViewer(clearIce = true) {
+    if (viewerPc) viewerPc.close();
+    viewerPc = null;
+    if (clearIce) pendingIce.clear();
+    if (!IS_ADMIN) {
+      video.srcObject = null;
+      showVideo(false);
+    }
+  }
+
+  function closeBroadcasterPeers() {
+    for (const pc of broadcasterPeers.values()) pc.close();
+    broadcasterPeers.clear();
+    pendingIce.clear();
+  }
+
+  async function makeOffer(viewerId) {
+    if (!localStream) return;
+    const old = broadcasterPeers.get(viewerId);
+    if (old) old.close();
+    const pc = new RTCPeerConnection(rtcConfig);
+    broadcasterPeers.set(viewerId, pc);
+    localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+    pc.onicecandidate = e => {
+      if (e.candidate) socket.emit('webrtc-ice', { target: viewerId, candidate: e.candidate });
+    };
+    pc.onconnectionstatechange = () => {
+      if (['failed','closed','disconnected'].includes(pc.connectionState)) {
+        pc.close();
+        broadcasterPeers.delete(viewerId);
+      }
+    };
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    socket.emit('webrtc-offer', { target: viewerId, sdp: pc.localDescription });
+  }
+
+  async function startWatching(id) {
+    if (IS_ADMIN && localStream) return;
+    broadcasterId = id;
+    socket.emit('watch-stream', { broadcasterId: id });
+    setConnection('Entrando na transmissão…', true);
+  }
+
+  if (shareBtn) shareBtn.addEventListener('click', async () => {
+    try {
+      if (!navigator.mediaDevices?.getDisplayMedia) throw new Error('Seu navegador não suporta compartilhamento de tela.');
+      localStream = await navigator.mediaDevices.getDisplayMedia({
+        video: { frameRate: { ideal: 30, max: 60 } },
+        audio: true
+      });
+      const audioTracks = localStream.getAudioTracks();
+      video.srcObject = localStream;
+      video.muted = true;
+      video.volume = 0;
+      await video.play().catch(() => {});
+      showVideo(true);
+      setLive(true);
+      setConnection(audioTracks.length ? 'Transmitindo tela com áudio' : 'Transmitindo tela sem áudio', true);
+      shareBtn.hidden = true;
+      stopBtn.hidden = false;
+      socket.emit('start-stream');
+      if (!audioTracks.length) addSystem('Aviso: o navegador não enviou áudio. Ao compartilhar, escolha uma opção com “Compartilhar áudio”.');
+      const [videoTrack] = localStream.getVideoTracks();
+      if (videoTrack) videoTrack.addEventListener('ended', stopSharing, { once: true });
+    } catch (err) {
+      if (err?.name === 'NotAllowedError') addSystem('Compartilhamento cancelado.');
+      else addSystem(`Não foi possível iniciar: ${err.message || err}`);
+    }
+  });
+
+  async function stopSharing() {
+    if (!localStream) return;
+    localStream.getTracks().forEach(t => t.stop());
+    localStream = null;
+    closeBroadcasterPeers();
+    socket.emit('stop-stream');
+    video.srcObject = null;
+    showVideo(false);
+    setLive(false);
+    setConnection('Transmissão encerrada', true);
+    if (shareBtn) shareBtn.hidden = false;
+    if (stopBtn) stopBtn.hidden = true;
+  }
+
+  if (stopBtn) stopBtn.addEventListener('click', stopSharing);
+
+  soundBtn.addEventListener('click', () => {
+    if (IS_ADMIN && localStream) {
+      addSystem('A prévia local fica muda para evitar eco. O público continua recebendo o áudio compartilhado.');
+      return;
+    }
+    video.muted = !video.muted;
+    soundBtn.textContent = video.muted ? '🔇 Som desligado' : '🔊 Som ligado';
+    if (!video.muted) video.play().catch(() => {});
+  });
+
+  chatForm.addEventListener('submit', e => {
+    e.preventDefault();
+    const text = chatInput.value.trim();
+    if (!text) return;
+    socket.emit('chat-message', text);
+    chatInput.value = '';
+    chatInput.focus();
+  });
+
+  chatInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      chatForm.requestSubmit();
+    }
+  });
+
+  socket.on('connect', () => setConnection('Conectado à sala', true));
+  socket.on('disconnect', () => setConnection('Reconectando…', false));
+  socket.on('room-count', count => onlineCount.textContent = `${count} online`);
+  socket.on('system-message', data => addSystem(data.text));
+  socket.on('app-error', text => {
+    addSystem(text);
+    if (IS_ADMIN && localStream) stopSharing();
+  });
+  socket.on('chat-message', addMessage);
+
+  socket.on('stream-available', ({ broadcasterId: id }) => {
+    setLive(true);
+    if (!IS_ADMIN) {
+      emptyTitle.textContent = 'Transmissão disponível';
+      emptyText.textContent = 'Conectando ao vídeo e ao áudio…';
+      startWatching(id);
+    }
+  });
+
+  socket.on('stream-started', ({ broadcasterId: id, name }) => {
+    setLive(true);
+    addSystem(`${name || 'A administração'} iniciou a transmissão.`);
+    if (!IS_ADMIN) startWatching(id);
+  });
+
+  socket.on('stream-stopped', () => {
+    broadcasterId = null;
+    closeViewer();
+    setLive(false);
+    setConnection('Aguardando nova transmissão', true);
+    emptyTitle.textContent = 'Transmissão encerrada';
+    emptyText.textContent = 'Quando uma nova transmissão começar, ela aparecerá aqui.';
+  });
+
+  socket.on('viewer-ready', ({ viewerId }) => makeOffer(viewerId).catch(err => addSystem(`Falha ao conectar espectador: ${err.message}`)));
+
+  socket.on('webrtc-offer', async ({ from, sdp }) => {
+    if (IS_ADMIN && localStream) return;
+    closeViewer(false);
+    broadcasterId = from;
+    const pc = new RTCPeerConnection(rtcConfig);
+    viewerPc = pc;
+    pc.ontrack = e => {
+      video.srcObject = e.streams[0];
+      video.muted = false;
+      video.volume = 1;
+      video.play().catch(() => {});
+      showVideo(true);
+      setLive(true);
+      setConnection('Assistindo ao vivo com áudio', true);
+      soundBtn.textContent = '🔊 Som ligado';
+    };
+    pc.onicecandidate = e => {
+      if (e.candidate) socket.emit('webrtc-ice', { target: from, candidate: e.candidate });
+    };
+    pc.onconnectionstatechange = () => {
+      if (pc.connectionState === 'failed') {
+        setConnection('Falha na conexão da transmissão', false);
+        addSystem('A conexão de vídeo falhou. Tente recarregar a página.');
+      }
+    };
+    await pc.setRemoteDescription(sdp);
+    await flushIce(from, pc);
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+    socket.emit('webrtc-answer', { target: from, sdp: pc.localDescription });
+  });
+
+  socket.on('webrtc-answer', async ({ from, sdp }) => {
+    const pc = broadcasterPeers.get(from);
+    if (!pc) return;
+    await pc.setRemoteDescription(sdp);
+    await flushIce(from, pc);
+  });
+
+  socket.on('webrtc-ice', async ({ from, candidate }) => {
+    const pc = IS_ADMIN && localStream ? broadcasterPeers.get(from) : viewerPc;
+    if (pc?.remoteDescription) {
+      try { await pc.addIceCandidate(candidate); } catch {}
+    } else {
+      getPending(from).push(candidate);
+    }
+  });
+
+  window.addEventListener('beforeunload', () => {
+    if (localStream) localStream.getTracks().forEach(t => t.stop());
+  });
+})();
+</script>
+</body>
+</html>

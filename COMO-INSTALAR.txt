@@ -1,0 +1,68 @@
+LNZ GESTÃO - INSTALAÇÃO FÁCIL
+=============================
+
+1) CRIE O BOT NO DISCORD DEVELOPER PORTAL
+- Pegue o Token do bot.
+- Pegue o Application ID / Client ID.
+- Em OAuth2, pegue o Client Secret.
+- Ative os intents necessários do bot.
+
+2) CRIE O ARQUIVO .env
+- Faça uma cópia de .env.example e renomeie para .env
+- Preencha:
+  DISCORD_TOKEN
+  CLIENT_ID
+  CLIENT_SECRET
+  OWNER_ID
+  GUILD_ID
+  BASE_URL
+  SESSION_SECRET
+
+3) OAUTH2 DO SITE
+No Discord Developer Portal > OAuth2 > Redirects, coloque:
+http://localhost:8080/auth/discord/callback
+
+Se o site estiver hospedado, use o domínio real, exemplo:
+https://painel.seudominio.com/auth/discord/callback
+
+4) TESTE NO PC
+Abra o CMD dentro da pasta e execute:
+npm install
+npm start
+
+Depois abra:
+http://localhost:8080
+
+5) CONFIGURE PELO DISCORD
+/configurar cargos
+/configurar canais
+/painel-ticket
+
+6) PRINCIPAIS COMANDOS
+/cliente adicionar
+/cliente ver
+/venda registrar
+/hospedagem renovar
+/relatorio
+/call entrar
+/call sair
+/call status
+/site
+
+7) CALL 24H
+Configure a call em /configurar canais.
+O bot entra mudo e ensurdecido e tenta reconectar se cair.
+
+8) RENOVAÇÃO DO CLIENTE
+O cliente entra no site com Discord.
+Ele vê plano, valor, vencimento, histórico e tickets.
+Ao clicar em RENOVAR AGORA, o bot abre um ticket de renovação.
+
+9) AVISOS AUTOMÁTICOS
+O bot avisa quando faltarem 7, 3 e 1 dia e também no dia do vencimento.
+
+IMPORTANTE
+- Nunca envie seu Token, Client Secret ou SESSION_SECRET para ninguém.
+- O pagamento automático por PIX/cartão não está nesta V1. A renovação da V1 é feita por ticket e confirmada pelo administrador.
+
+TRANSMISSAO: depois de atualizar, rode npm install novamente. A sala fica em /sala e usa compartilhamento de tela do navegador com audio + chat.

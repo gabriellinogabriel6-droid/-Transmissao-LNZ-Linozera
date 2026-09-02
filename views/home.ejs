@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="pt-BR">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>LNZ Gestão</title><link rel="stylesheet" href="/style.css"></head>
+<body>
+<div class="ambient"></div>
+<header class="topbar"><a class="brand" href="/"><span class="brandmark">LNZ</span><span>Gestão</span></a><div><% if (user) { %><a class="btn ghost" href="/logout">Sair</a><% } %></div></header>
+<main class="landing">
+  <section class="hero">
+    <div class="eyebrow">GESTÃO DE CLIENTES • DISCORD</div>
+    <h1>Suas vendas, clientes e hospedagens em um só lugar.</h1>
+    <p>Tickets, renovações, vencimentos, relatórios mensais, logs e área exclusiva para cada cliente.</p>
+    <div class="hero-actions">
+      <% if (!user) { %><a class="btn primary" href="/auth/discord">Entrar com Discord</a><% } else if (access.isAdmin) { %><a class="btn primary" href="/dashboard">Abrir painel administrativo</a><% } else { %><a class="btn primary" href="/cliente">Abrir minha área</a><% } %>
+    </div>
+  </section>
+  <section class="feature-grid">
+    <article class="feature"><span>🎫</span><h3>Tickets</h3><p>Atendimento privado com transcrição salva.</p></article>
+    <article class="feature"><span>💰</span><h3>Vendas</h3><p>Controle de faturamento, produtos e vendedores.</p></article>
+    <article class="feature"><span>🖥️</span><h3>Hospedagem</h3><p>Vencimentos, avisos automáticos e renovações.</p></article>
+    <article class="feature"><span>📊</span><h3>Relatórios</h3><p>Resumo mensal e histórico administrativo.</p></article>
+  </section>
+</main>
+<footer>© 2026 LNZ Gestão</footer>
+</body></html>
